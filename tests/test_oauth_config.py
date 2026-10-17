@@ -64,7 +64,7 @@ class OAuthConfigTests(unittest.TestCase):
                           owner_password_file='owner.hash', redirect_uris=['https://client.example/callback'])
             path.write_text(json.dumps(config))
             parsed = OAuthConfig.load(path)
-            self.assertEqual(parsed.database, root / 'state' / 'auth.db')
+            self.assertEqual(parsed.database, (root / 'state' / 'auth.db').resolve())
             self.assertEqual(parsed.resource, 'https://monitor.example/mcp')
             encoded = password_hash('fixture password for testing only')
             parsed.owner_password_file.write_text(encoded)
