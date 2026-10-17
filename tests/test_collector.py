@@ -240,6 +240,25 @@ class LogTests(DatabaseFixture):
         parsed = logs.parse_line('17-10-2026 12:00:00 SOCKS.1080 00000 user 192.0.2.1:10 192.0.2.2:443 20 10 0 CONNECT target')
         self.assertEqual((parsed['bytes_up'], parsed['bytes_down']), (10, 20))
 
+    def test_non_utf8_text_keeps_accounting_and_offsets(self):
+        raw = record().encode().replace(b'CONNECT private-target', b'CONNECT \xff\xfe')
+        self.log.write_bytes(raw + record().encode())
+        self.tail()
+        self.tail()
+        rows = self.rows()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[1]['offset'], len(raw))
+        self.assertEqual(sum(r['bytes_up'] for r in rows), 20)
+        self.assertNotIn('log_parse_error', self.db.conn.execute(
+            "SELECT warnings FROM runs WHERE source_id='log' ORDER BY id DESC LIMIT 1").fetchone()[0])
+
+    def test_non_utf8_numeric_field_is_still_rejected(self):
+        self.log.write_bytes(record().encode().replace(b'|20|10|100|', b'|\xff|10|100|'))
+        self.tail()
+        self.assertEqual(self.rows(), [])
+        self.assertIn('log_parse_error', self.db.conn.execute(
+            "SELECT warnings FROM runs WHERE source_id='log'").fetchone()[0])
+
 
 class PrometheusTests(unittest.TestCase):
     def test_aliases_and_integer_precision(self):

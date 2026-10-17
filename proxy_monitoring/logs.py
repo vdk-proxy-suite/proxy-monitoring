@@ -81,7 +81,10 @@ def tail(db, source: dict, started: int, now: int, max_lines: int = 2000):
                     remaining -= 1
                     offset = stream.tell()
                     try:
-                        record = parse_line(raw.decode('utf-8'))
+                        # Client-controlled free text is not necessarily UTF-8. Preserve
+                        # byte offsets, replace undecodable text, and still validate all
+                        # numeric accounting fields strictly in parse_line().
+                        record = parse_line(raw.decode('utf-8', errors='replace'))
                     except (ValueError, IndexError, UnicodeError):
                         warnings.append('log_parse_error')
                         continue
