@@ -1,0 +1,23 @@
+[Unit]
+Description=Proxy monitoring SQLite collector
+After=network.target
+
+[Service]
+Type=simple
+User=proxy-monitor
+Group=proxy-monitor
+WorkingDirectory=/opt/proxy-monitoring
+ExecStart=/usr/bin/python3 -m proxy_monitoring --config /etc/proxy-monitoring/config.json collect
+Restart=on-failure
+RestartSec=5
+StateDirectory=proxy-monitoring
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
