@@ -20,6 +20,11 @@ jobs:
       - run: python -m pip check
       - run: python tools/check_public_examples.py
       - run: python -m unittest discover -s tests -v
+      - name: Install browser test dependencies
+        run: python -m pip install playwright==1.64.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Real browser OAuth consent and callback
+        run: python tools/browser_oauth_smoke.py
       - run: python -m compileall -q proxy_monitoring tests tools
       - run: python -m proxy_monitoring --config config.example.json validate
       - if: runner.os == 'Linux'

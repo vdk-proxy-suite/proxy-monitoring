@@ -212,6 +212,17 @@ class OAuthHTTP:
         else:
             self.store.consume_pending(pending, cookie)
             response = error('authentication_failed_restart_authorization', 403)
+        if response.status_code == 302:
+            # End the form navigation before leaving this origin. Chromium
+            # applies form-action to HTTP redirect chains (and CSP host sources
+            # do not reliably support IPv6 literals). A new HTML document's
+            # navigation works without relaxing form-action or enabling scripts.
+            destination = html.escape(response.headers['location'], quote=True)
+            response = HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                f'<meta http-equiv="refresh" content="0;url={destination}">'
+                '<title>Return to MCP client</title></head><body>'
+                f'<p><a id="oauth-continue" href="{destination}" rel="noreferrer">Continue to MCP client</a></p>'
+                '</body></html>')
         response.delete_cookie('__Host-proxy-oauth', path='/', secure=True, httponly=True, samesite='lax')
         return response
 
@@ -292,9 +303,14 @@ class OAuthBoundary:
 
         async def secure_send(message):
             if message['type'] == 'http.response.start':
+                # no-referrer makes native browser form POSTs use Origin: null.
+                # Keep the real Origin on the login document without disclosing
+                # its request token in Referer; redirects retain no-referrer.
+                referrer_policy = (b'strict-origin' if scope['method'] == 'GET'
+                                   and scope['path'] == '/login' else b'no-referrer')
                 message['headers'] = list(message.get('headers', [])) + [
                     (b'cache-control', b'no-store'), (b'pragma', b'no-cache'),
-                    (b'referrer-policy', b'no-referrer'), (b'x-content-type-options', b'nosniff'),
+                    (b'referrer-policy', referrer_policy), (b'x-content-type-options', b'nosniff'),
                     (b'x-frame-options', b'DENY'),
                     (b'content-security-policy', b"default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")]
             await send(message)

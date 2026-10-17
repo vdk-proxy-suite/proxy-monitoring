@@ -8,3 +8,7 @@ paths = ['''(^|[/\\])\.venv([/\\]|$)''']
 [[allowlists]]
 description = "Downloaded public upstream source used only by the isolated accounting probe"
 paths = ['''(^|[/\\])tmp[/\\]threeproxy-(build|reference)([/\\]|$)''']
+
+[[allowlists]]
+description = "Downloaded Playwright test runtime; ignored vendor files, not source or release"
+paths = ['''(^|[/\\])tmp[/\\]browser-deps[/\\]playwright([/\\]|$)''']

@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import html
 import re
 import asyncio
 import json
@@ -24,6 +25,42 @@ from test_analytics import AnalyticsFixture
 
 
 class OAuthHTTPTests(AnalyticsFixture):
+    def continuation(self, response):
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn('http-equiv="refresh"', response.text)
+        return html.unescape(re.search(r'id="oauth-continue" href="([^"]+)"', response.text)[1])
+
+    def test_login_browser_policies_and_null_origin_rejection(self):
+        response = self.authorize()
+        page = self.client.get(response.headers['location'])
+        self.assertEqual(page.headers['referrer-policy'], 'strict-origin')
+        self.assertEqual(page.headers['content-security-policy'],
+            "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+        data = {name: re.search(f'name="{name}" value="([^"]+)"', page.text)[1] for name in ['request', 'csrf']}
+        data.update(password=self.password, decision='approve')
+        for headers in ({'Origin': 'null'}, {}, {'Origin': 'https://evil.example'}):
+            self.assertEqual(self.client.post('/login', data=data, headers=headers).status_code, 403)
+        response = self.client.post('/login', data=data, headers={'Origin': self.config.issuer})
+        self.assertTrue(self.continuation(response).startswith('https://client.example/callback?'))
+        self.assertEqual(response.headers['referrer-policy'], 'no-referrer')
+        self.assertEqual(response.headers['content-security-policy'], page.headers['content-security-policy'])
+        self.assertNotIn(self.password, response.text)
+        self.assertNotIn(data['csrf'], response.text)
+
+    def test_continuation_escapes_callback_query(self):
+        callback = 'https://client.example/callback?label=%22%3E%3Cscript%3E&mode=test'
+        self.config = replace(self.config, redirect_uris=(callback,))
+        self.client = self.enterContext(TestClient(oauth_app(self.path, self.config),
+            base_url=self.config.issuer, follow_redirects=False))
+        response = self.client.post('/register', json=dict(client_name='Fixture <client>',
+            redirect_uris=[callback], grant_types=['authorization_code', 'refresh_token']))
+        self.client_id = response.json()['client_id']
+        response = self.consent()
+        target = self.continuation(response)
+        self.assertTrue(target.startswith(callback + '&'))
+        self.assertIn('&amp;', response.text)
+        self.assertNotIn('<script>', response.text)
+
     def test_official_sdk_loopback_callback(self):
         self.config = replace(self.config, redirect_uris=('http://127.0.0.1:54321/callback',))
         self.client = self.enterContext(TestClient(oauth_app(self.path, self.config),
@@ -46,8 +83,8 @@ class OAuthHTTPTests(AnalyticsFixture):
                     self.assertEqual(self.authorize(redirect_uri=bad).status_code, 400)
                     self.assertEqual(client.post('/register', json={'redirect_uris': [bad]}).status_code, 400)
                 response = self.consent()
-                self.assertTrue(response.headers['location'].startswith(actual + '?'))
-                code = parse_qs(urlsplit(response.headers['location']).query)['code'][0]
+                self.assertTrue(self.continuation(response).startswith(actual + '?'))
+                code = parse_qs(urlsplit(self.continuation(response)).query)['code'][0]
                 self.assertEqual(self.exchange(code, redirect_uri=template).status_code, 400)
                 self.assertEqual(self.exchange(code, redirect_uri=f'http://{host}:54322/callback').status_code, 400)
                 tokens = self.exchange(code).json()
@@ -99,8 +136,7 @@ class OAuthHTTPTests(AnalyticsFixture):
 
     def tokens(self):
         response = self.consent()
-        self.assertEqual(response.status_code, 302, response.text)
-        args = parse_qs(urlsplit(response.headers['location']).query)
+        args = parse_qs(urlsplit(self.continuation(response)).query)
         self.assertEqual(args['state'], ['fixture state'])
         self.assertEqual(args['iss'], [self.config.issuer])
         response = self.exchange(args['code'][0])
@@ -133,7 +169,7 @@ class OAuthHTTPTests(AnalyticsFixture):
 
     def test_code_replay_pkce_and_resource(self):
         response = self.consent()
-        code = parse_qs(urlsplit(response.headers['location']).query)['code'][0]
+        code = parse_qs(urlsplit(self.continuation(response)).query)['code'][0]
         self.assertEqual(self.exchange(code, resource='https://other.example/mcp').json()['error'], 'invalid_target')
         self.assertEqual(self.exchange(code, code_verifier='w' * 43).json()['error'], 'invalid_grant')
         self.assertEqual(self.exchange(code).status_code, 200)
@@ -166,7 +202,7 @@ class OAuthHTTPTests(AnalyticsFixture):
 
     def test_login_denial_wrong_password_csrf_and_limits(self):
         response = self.consent(decision='deny')
-        self.assertIn('error=access_denied', response.headers['location'])
+        self.assertIn('error=access_denied', self.continuation(response))
         self.assertEqual(self.consent(password='wrong').status_code, 403)
         self.assertEqual(self.consent(csrf='x' * 43).status_code, 403)
         for _ in range(8):
@@ -287,8 +323,7 @@ class OAuthHTTPTests(AnalyticsFixture):
             data = {name: re.search(f'name="{name}" value="([^"]+)"', page.text)[1] for name in ['request', 'csrf']}
             response = browser.post('/login', data=dict(data, password=password, decision='approve'),
                                     headers={'Origin': self.config.issuer})
-            self.assertEqual(response.status_code, 302, response.text)
-            callback.update({key: value[0] for key, value in parse_qs(urlsplit(response.headers['location']).query).items()})
+            callback.update({key: value[0] for key, value in parse_qs(urlsplit(self.continuation(response)).query).items()})
 
         async def result():
             return AuthorizationCodeResult(**callback)
