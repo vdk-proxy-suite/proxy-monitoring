@@ -3,6 +3,7 @@
   "database": "/var/lib/proxy-monitoring-auth/oauth.db",
   "owner_password_file": "/etc/proxy-monitoring/owner.hash",
   "redirect_uris": [
-    "https://chatgpt.com/connector_platform_oauth_redirect"
+    "https://chatgpt.com/connector_platform_oauth_redirect",
+    "http://127.0.0.1/callback"
   ]
 }

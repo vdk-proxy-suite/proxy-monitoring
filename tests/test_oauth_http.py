@@ -6,6 +6,7 @@ import json
 import socket
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -23,6 +24,35 @@ from test_analytics import AnalyticsFixture
 
 
 class OAuthHTTPTests(AnalyticsFixture):
+    def test_official_sdk_loopback_callback(self):
+        self.config = replace(self.config, redirect_uris=('http://127.0.0.1:54321/callback',))
+        self.client = self.enterContext(TestClient(oauth_app(self.path, self.config),
+            base_url=self.config.issuer, follow_redirects=False))
+        self.test_official_sdk_drives_discovery_registration_pkce_and_issuer_validation()
+
+    def test_loopback_flow_allows_only_port_variation_and_code_binds_actual_port(self):
+        for host in ('127.0.0.1', '[::1]'):
+            template = f'http://{host}/callback'
+            config = replace(self.config, redirect_uris=(template,))
+            with TestClient(oauth_app(self.path, config), base_url=config.issuer, follow_redirects=False) as client:
+                self.client = client
+                registered = client.post('/register', json=dict(client_name='Fixture <client>', redirect_uris=[f'http://{host}:49151/callback'],
+                    token_endpoint_auth_method='none', grant_types=['authorization_code', 'refresh_token']))
+                self.assertEqual(registered.status_code, 201, registered.text)
+                self.client_id = registered.json()['client_id']
+                actual = f'http://{host}:54321/callback'
+                self.config = replace(config, redirect_uris=(actual,))
+                for bad in (actual + '/extra', actual + '?extra=1', 'http://evil.example/callback'):
+                    self.assertEqual(self.authorize(redirect_uri=bad).status_code, 400)
+                    self.assertEqual(client.post('/register', json={'redirect_uris': [bad]}).status_code, 400)
+                response = self.consent()
+                self.assertTrue(response.headers['location'].startswith(actual + '?'))
+                code = parse_qs(urlsplit(response.headers['location']).query)['code'][0]
+                self.assertEqual(self.exchange(code, redirect_uri=template).status_code, 400)
+                self.assertEqual(self.exchange(code, redirect_uri=f'http://{host}:54322/callback').status_code, 400)
+                tokens = self.exchange(code).json()
+                self.assertEqual(self.rpc(tokens['access_token'], 'tools/list').status_code, 200)
+
     def setUp(self):
         super().setUp()
         self.password = 'fixture owner password not for deployment'

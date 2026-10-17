@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import secrets
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
@@ -45,6 +46,50 @@ def https_url(value: str, *, origin=False) -> str:
     return value
 
 
+def redirect_url(value: str) -> str:
+    """HTTPS callbacks, or RFC 8252 HTTP callbacks to literal loopback only."""
+    if isinstance(value, str) and value.startswith('http://'):
+        if len(value) > 2048 or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
+            raise ValueError('invalid_oauth_redirect')
+        parsed = urlsplit(value)
+        if (not re.fullmatch(r'(127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?', parsed.netloc)
+                or not parsed.path.startswith('/') or '\\' in value
+                or (parsed.port is not None and not 1 <= parsed.port <= 65535)):
+            raise ValueError('invalid_loopback_redirect')
+    else:
+        https_url(value)
+        parsed = urlsplit(value)
+    if '#' in value:
+        raise ValueError('oauth_redirect_fragment')
+    reserved = {'code', 'state', 'iss', 'error', 'error_description', 'error_uri'}
+    if reserved.intersection(key for key, val in parse_qsl(parsed.query)):
+        raise ValueError('oauth_redirect_contains_reserved_parameter')
+    return value
+
+
+def redirect_allowed(value, allowed) -> bool:
+    """Only the port may vary for a registered literal HTTP loopback URI.
+
+    Authorization codes still bind the actual URI, including its port, exactly.
+    No DNS lookup, hostname wildcard, path prefix or URL decoding is involved.
+    """
+    try:
+        redirect_url(value)
+        requested = urlsplit(value)
+        for candidate in allowed:
+            redirect_url(candidate)
+            if value == candidate:
+                return True
+            registered = urlsplit(candidate)
+            if (requested.scheme == registered.scheme == 'http'
+                    and requested.hostname == registered.hostname
+                    and requested.path == registered.path and requested.query == registered.query):
+                return True
+    except (ValueError, TypeError):
+        return False
+    return False
+
+
 @dataclass(frozen=True)
 class OAuthConfig:
     issuer: str
@@ -65,10 +110,7 @@ class OAuthConfig:
         redirects = raw['redirect_uris']
         if not isinstance(redirects, list) or not 1 <= len(redirects) <= 20:
             raise ValueError('oauth_redirect_allowlist_required')
-        redirects = tuple(https_url(uri) for uri in redirects)
-        reserved = {'code', 'state', 'iss', 'error', 'error_description', 'error_uri'}
-        if any(reserved.intersection(key for key, value in parse_qsl(urlsplit(uri).query)) for uri in redirects):
-            raise ValueError('oauth_redirect_contains_reserved_parameter')
+        redirects = tuple(redirect_url(uri) for uri in redirects)
         if len(set(redirects)) != len(redirects):
             raise ValueError('duplicate_oauth_redirect')
         paths = []

@@ -6,12 +6,36 @@ from unittest.mock import patch
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 
-from proxy_monitoring.oauth_config import OAuthConfig, https_url, password_hash, verify_password
+from proxy_monitoring.oauth_config import OAuthConfig, https_url, password_hash, verify_password, redirect_url, redirect_allowed
 from proxy_monitoring.cli import main
 from proxy_monitoring.oauth_store import GrantStore
 
 
 class OAuthConfigTests(unittest.TestCase):
+    def test_loopback_redirect_validation_and_port_matching(self):
+        for host in ('127.0.0.1', '[::1]'):
+            base = f'http://{host}/callback'
+            self.assertEqual(redirect_url(base), base)
+            self.assertTrue(redirect_allowed(f'http://{host}:54321/callback', [base]))
+            self.assertTrue(redirect_allowed(f'http://{host}:54322/callback', [f'http://{host}:54321/callback']))
+            self.assertFalse(redirect_allowed(f'http://{host}:54321/callback/other', [base]))
+            self.assertFalse(redirect_allowed(f'http://{host}:54321/callback?extra=1', [base]))
+        self.assertFalse(redirect_allowed('http://[::1]:54321/callback', ['http://127.0.0.1/callback']))
+        self.assertFalse(redirect_allowed('https://example.com:123/callback', ['https://example.com/callback']))
+        for uri in ('http://localhost/callback', 'http://127.0.0.2/callback',
+                    'http://127.1/callback', 'http://2130706433/callback',
+                    'http://127.0.0.1.evil.example/callback', 'http://127.0.0.1@evil.example/callback',
+                    'http://evil.example@127.0.0.1/callback', 'http://[::ffff:127.0.0.1]/callback',
+                    'http://0.0.0.0/callback', 'http://10.0.0.1/callback', 'http://example.com/callback',
+                    'http://127.0.0.1:0/callback', 'http://127.0.0.1:65536/callback',
+                    'http://127.0.0.1:/callback', 'http://127.0.0.1/callback#',
+                    'http://127.0.0.1/callback?code=bad', 'http://127.0.0.1/callback?%73tate=bad',
+                    'http://127.0.0.1\\@evil.example/callback'):
+            with self.subTest(uri=uri), self.assertRaises(ValueError):
+                redirect_url(uri)
+        with self.assertRaises(ValueError):
+            https_url('http://127.0.0.1', origin=True)
+
     def test_cli_initialization_no_overwrite_and_revoke(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
+from check_public_examples import check as check_public_examples
 
 
 def main():
@@ -32,6 +33,7 @@ def main():
                 assert archive.read(info) == (root / relative).read_bytes()
             archive.extractall(temp)
         extracted = Path(temp) / prefix.rstrip('/')
+        check_public_examples(extracted, sorted(expected))
         if args.scan:
             subprocess.run(['gitleaks', 'dir', '--redact', '--no-banner', str(extracted)], check=True)
         if args.test:

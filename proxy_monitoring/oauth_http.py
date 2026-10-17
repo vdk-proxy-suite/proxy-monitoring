@@ -15,7 +15,7 @@ from mcp.server.auth.provider import AccessToken
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
-from .oauth_config import verify_password
+from .oauth_config import verify_password, redirect_allowed
 from .oauth_store import GrantStore
 
 SCOPES = ['monitor:read', 'offline_access']
@@ -96,7 +96,7 @@ class OAuthHTTP:
             return error('invalid_client_metadata')
         redirects = raw.get('redirect_uris')
         if (not isinstance(redirects, list) or not 1 <= len(redirects) <= 20
-                or any(not isinstance(uri, str) or uri not in self.config.redirect_uris for uri in redirects)):
+                or any(not redirect_allowed(uri, self.config.redirect_uris) for uri in redirects)):
             return error('invalid_redirect_uri')
         if raw.get('token_endpoint_auth_method', 'none') != 'none':
             return error('invalid_client_metadata')
@@ -133,8 +133,8 @@ class OAuthHTTP:
         self.store.prune()
         data = parameters(request.url.query)
         client = self.store.client(data.get('client_id', ''))
-        if (not client or data.get('redirect_uri') not in client['redirect_uris']
-                or data.get('redirect_uri') not in self.config.redirect_uris):
+        if (not client or not redirect_allowed(data.get('redirect_uri'), client['redirect_uris'])
+                or not redirect_allowed(data.get('redirect_uri'), self.config.redirect_uris)):
             return error('invalid_request')
         if data.get('response_type') != 'code':
             return self.redirect(data, error='unsupported_response_type')

@@ -1,4 +1,9 @@
-# Proxy Monitoring 0.3.0
+# Proxy Monitoring 0.3.1
+
+0.3.1 исправляет OAuth callback для Codex/native-клиентов: разрешает HTTP на
+буквальные loopback-адреса с переменным портом по RFC 8252. HTTPS MCP и точная
+привязка кода авторизации к фактическому callback сохраняются.
+Обновление: [docs/upgrade-0.3.1.md](docs/upgrade-0.3.1.md).
 
 0.3.0 добавляет OAuth для удалённого MCP: вход владельца, явное согласие,
 Authorization Code + PKCE, discovery, refresh/revoke и отдельную auth DB.

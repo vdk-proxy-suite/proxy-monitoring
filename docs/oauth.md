@@ -15,7 +15,8 @@
 ## Подготовка Linux
 
 Нужен собственный DNS-домен с HTTPS, ведущий на VM. MCP слушает только loopback
-`127.0.0.1:9000`; TLS завершает reverse proxy. HTTPS требуется и для callback URI.
+`127.0.0.1:9000`; TLS завершает reverse proxy. Callback URI требует HTTPS, кроме
+локального HTTP callback на буквальный `127.0.0.1` или `[::1]` (начиная с v0.3.1).
 На этом этапе не нужно менять настройки или перезапускать 3proxy/Telemt.
 
 После установки релиза в `/opt/proxy-monitoring`:
@@ -36,6 +37,17 @@ sudoedit /etc/proxy-monitoring/oauth.json
 [требованиям ChatGPT OAuth](https://developers.openai.com/plugins/build/auth).
 Другие клиенты должны поддерживать public-client DCR, PKCE и resource indicators.
 Работу через конкретный аккаунт ChatGPT проверяют после настройки публичного HTTPS.
+
+Для Codex разрешите `http://127.0.0.1/callback` (в новом примере он уже включён).
+Это адрес браузера/локального слушателя на компьютере с Codex, а не адрес VM.
+Согласно RFC 8252 порт может отличаться между регистрацией и авторизацией;
+host, path и query должны совпадать. Для IPv6 отдельно разрешите
+`http://[::1]/callback`. `localhost`, внешние HTTP-адреса, другие IP и wildcard
+не поддерживаются. Если клиент использует `/callback/<id>`, добавьте именно этот
+путь; разрешение `/callback` не разрешает все дочерние пути. Полный фактический
+callback, включая порт, затем точно проверяется при обмене кода на токен.
+`issuer` и `resource` MCP остаются HTTPS. После изменения allowlist перезапустите
+только `proxy-monitoring-mcp-oauth.service`, затем повторите Authenticate в клиенте.
 
 Создайте пароль интерактивно (не передавайте его аргументом команды или в JSON):
 
