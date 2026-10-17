@@ -24,6 +24,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: python tools/smoke_linux.py
       - if: runner.os == 'Linux'
+        run: systemd-analyze verify systemd/*.service
+      - if: runner.os == 'Linux'
         name: Verify real 3proxy accounting and logdump
         shell: bash
         run: |

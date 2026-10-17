@@ -1,0 +1,25 @@
+[Unit]
+Description=Proxy monitoring MCP with OAuth
+After=proxy-monitoring.service
+Requires=proxy-monitoring.service
+
+[Service]
+Type=simple
+User=proxy-monitor
+Group=proxy-monitor
+WorkingDirectory=/opt/proxy-monitoring
+ExecStart=/usr/bin/env /opt/proxy-monitoring/venv/bin/python -m proxy_monitoring --config /etc/proxy-monitoring/config.json mcp --transport streamable-http --oauth-config /etc/proxy-monitoring/oauth.json
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StateDirectory=proxy-monitoring-auth
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/var/lib/proxy-monitoring
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,8 @@
-# Proxy Monitoring 0.2.2
+# Proxy Monitoring 0.3.0
+
+0.3.0 добавляет OAuth для удалённого MCP: вход владельца, явное согласие,
+Authorization Code + PKCE, discovery, refresh/revoke и отдельную auth DB.
+Настройка HTTPS и подключение клиента: [docs/oauth.md](docs/oauth.md).
 
 0.2.1 исправляет чтение 3proxy-логов с не-UTF-8 байтами в клиентском тексте.
 Числовые поля остаются строго проверяемыми, byte offsets не меняются. Уже
@@ -21,7 +25,7 @@ upload/download в этом формате и позволяет восстан�
 Реализованы сбор, постоянное хранилище, read-only CLI, retention и systemd-шаблоны.
 В 0.2.0 добавлены read-only MCP (stdio и Streamable HTTP), историческая аналитика,
 10 инструментов с JSON Schema/structured output и диагностические правила.
-Telegram-адаптер, OAuth, сезонные аномалии, lifecycle incidents и rollups пока не реализованы.
+Telegram-адаптер, сезонные аномалии, lifecycle incidents и rollups пока не реализованы.
 Существующий `proxy-monitor-bot` остаётся самостоятельным проектом; его БД не
 импортируется и не изменяется.
 
@@ -40,7 +44,8 @@ venv/bin/python -m proxy_monitoring --config config.json mcp
 каталогом проекта. В Windows используется `venv\Scripts\python.exe`.
 Для удалённой VM можно запускать stdio-команду через SSH с отключённым TTY.
 
-HTTP-режим требует приватный файл с криптографически случайным bearer token
+Для удалённых клиентов с OAuth используйте [OAuth-режим](docs/oauth.md).
+Альтернативный HTTP bearer-режим требует приватный файл с криптографически случайным bearer token
 длиной 32–512 ASCII-символов без пробелов (например `secrets.token_urlsafe(32)`).
 Не передавайте токен в CLI arguments или Git. На Linux файл должен иметь mode 0600.
 
@@ -56,8 +61,9 @@ Endpoint: `http://127.0.0.1:9000/mcp`, заголовок `Authorization: Bearer
 переписывать Host на `127.0.0.1:9000` и не записывать Authorization в access logs.
 Если клиент посылает Origin, задайте разрешённый origin:
 `--public-origin https://monitor.example.com`. Иначе любой Origin отклоняется.
-Это static bearer authentication, **не OAuth-сервер**; клиенты, требующие OAuth
-discovery, пока не поддерживаются. TLS, DNS и ingress автоматически не настраиваются.
+Этот вариант использует static bearer authentication. Для OAuth discovery вместо
+`--token-file` укажите `--oauth-config`, как описано в docs/oauth.md.
+TLS, DNS и ingress автоматически не настраиваются.
 
 Шаблон отдельной службы: `systemd/proxy-monitoring-mcp.service`. Он использует
 venv, запускается после коллектора и ограничивает каталог БД чтением.
@@ -215,6 +221,6 @@ Unit/integration tests используют временные БД, синте�
 останавливает службы и не обращается к production-прокси. CI запускает тесты на
 Linux и Windows. Спецификация реализованной БД: [docs/storage.md](docs/storage.md).
 
-Следующий этап: Telegram-адаптер, rollups и OAuth для клиентов, требующих discovery.
+Следующий этап: Telegram-адаптер и rollups.
 Все интерфейсы сохраняют различия
 между application/network traffic, log events/sessions/TCP sockets и gaps/zeros.

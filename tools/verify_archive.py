@@ -37,8 +37,8 @@ def main():
         if args.test:
             subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], cwd=extracted, check=True)
             subprocess.run([sys.executable, 'tools/smoke_linux.py'], cwd=extracted, check=True)
-            subprocess.run(['systemd-analyze', 'verify', 'systemd/proxy-monitoring.service',
-                            'systemd/proxy-monitoring-mcp.service'], cwd=extracted, check=True)
+            units = sorted(str(path.relative_to(extracted)) for path in (extracted / 'systemd').glob('*.service'))
+            subprocess.run(['systemd-analyze', 'verify', *units], cwd=extracted, check=True)
             if args.threeproxy_binary:
                 subprocess.run([sys.executable, 'tools/probe_3proxy_accounting.py',
                                 '--binary', str(args.threeproxy_binary.resolve())], cwd=extracted, check=True)

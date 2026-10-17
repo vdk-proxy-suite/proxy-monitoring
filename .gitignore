@@ -19,3 +19,7 @@ tmp/
 *.token
 token
 secrets/
+oauth.json
+oauth.*.json
+!docs/oauth.example.json
+*.hash

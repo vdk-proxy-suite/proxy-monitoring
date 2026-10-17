@@ -106,5 +106,6 @@ Typical error codes: `target_not_found`, `metric_not_available_for_target`,
 
 Protocol/reference sources: [official SDK](https://github.com/modelcontextprotocol/python-sdk),
 [MCP tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
-OAuth integration and public deployment are separate future work; a static bearer
-endpoint must not be advertised as implementing MCP OAuth authorization discovery.
+OAuth is available through `--oauth-config` in v0.3.0; see [oauth.md](oauth.md).
+The static bearer endpoint remains a separate mode without OAuth discovery.
+Public HTTPS/DNS deployment is an operator step, not performed by the collector.
