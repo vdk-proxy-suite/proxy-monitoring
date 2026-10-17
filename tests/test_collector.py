@@ -276,6 +276,10 @@ class PrometheusTests(unittest.TestCase):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_linux_example_validates_on_all_development_platforms(self):
+        cfg = load(Path(__file__).resolve().parents[1] / 'config.example.json')
+        self.assertEqual(len(cfg['sources']), 3)
+
     def test_reject_remote_endpoint_and_duplicates(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'config.json'

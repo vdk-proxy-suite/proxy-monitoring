@@ -1,6 +1,6 @@
 import json
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 ID = re.compile(r"^[a-zA-Z0-9_.-]{1,80}$")
@@ -39,7 +39,8 @@ def load(path: Path) -> dict:
             if not url.port:
                 raise ValueError("metrics_url requires a port")
         if source["kind"] == "3proxy":
-            if not Path(source.get("log_glob", "")).is_absolute():
+            log_glob = source.get("log_glob", "")
+            if not (Path(log_glob).is_absolute() or PurePosixPath(log_glob).is_absolute()):
                 raise ValueError("log_glob must be absolute")
             if source.get("byte_semantics", "unknown") not in {"unknown", "delta"}:
                 raise ValueError("unsupported byte semantics")
