@@ -4,3 +4,7 @@ useDefault = true
 [[allowlists]]
 description = "Generated third-party virtual environment, never part of source or release"
 paths = ['''(^|[/\\])\.venv([/\\]|$)''']
+
+[[allowlists]]
+description = "Downloaded public upstream source used only by the isolated accounting probe"
+paths = ['''(^|[/\\])tmp[/\\]threeproxy-(build|reference)([/\\]|$)''']

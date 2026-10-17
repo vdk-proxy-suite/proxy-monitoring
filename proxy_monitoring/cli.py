@@ -12,16 +12,21 @@ from .runner import now_ms, run
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Proxy telemetry collector (Linux runtime)')
     parser.add_argument('--config', type=Path, default=Path('config.json'))
-    parser.add_argument('command', choices=['validate', 'collect', 'health', 'current', 'mcp'])
+    parser.add_argument('command', choices=['validate', 'collect', 'health', 'current', 'mcp', 'replay-3proxy'])
     parser.add_argument('--once', action='store_true', help='one collection cycle')
     parser.add_argument('--transport', choices=['stdio', 'streamable-http'], default='stdio')
     parser.add_argument('--host', choices=['127.0.0.1', '::1'], default='127.0.0.1')
     parser.add_argument('--port', type=int, default=9000)
     parser.add_argument('--token-file', type=Path)
     parser.add_argument('--public-origin')
+    parser.add_argument('--source-id', action='append', default=[])
     args = parser.parse_args(argv)
     try:
         cfg = load(args.config)
+        if args.command == 'replay-3proxy':
+            from .repair import replay
+            print(json.dumps(replay(cfg, args.source_id), ensure_ascii=False, indent=2))
+            return 0
         if args.command == 'mcp':
             from .mcp_server import serve
             serve(Path(cfg['database']), args.transport, args.host, args.port, args.token_file, args.public_origin)

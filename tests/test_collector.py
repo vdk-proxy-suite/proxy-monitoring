@@ -15,7 +15,7 @@ from proxy_monitoring.storage import Database
 
 
 def record(up=10, down=20):
-    return f'v1|1800000000|x|x|SOCKS|1080|00000|private-user|192.0.2.1|42|192.0.2.2|443|private-target|443|private-host|{down}|{up}|100|CONNECT private-target\n'
+    return f'v1|1800000000|x|x|SOCKS|1080|00000|private-user|192.0.2.1|42|192.0.2.2|443|private-target|443|private-host|{up}|{down}|100|CONNECT private-target\n'
 
 
 class DatabaseFixture(unittest.TestCase):
@@ -253,7 +253,7 @@ class LogTests(DatabaseFixture):
             "SELECT warnings FROM runs WHERE source_id='log' ORDER BY id DESC LIMIT 1").fetchone()[0])
 
     def test_non_utf8_numeric_field_is_still_rejected(self):
-        self.log.write_bytes(record().encode().replace(b'|20|10|100|', b'|\xff|10|100|'))
+        self.log.write_bytes(record().encode().replace(b'|10|20|100|', b'|\xff|20|100|'))
         self.tail()
         self.assertEqual(self.rows(), [])
         self.assertIn('log_parse_error', self.db.conn.execute(

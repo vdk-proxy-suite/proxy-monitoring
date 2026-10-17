@@ -14,7 +14,8 @@ def parse_line(line: str) -> dict:
         if len(fields) != 19:
             raise ValueError('invalid monitor_v1 record')
         timestamp, port, code = int(fields[1]) * 1000, int(fields[5]), fields[6]
-        down, up = int(fields[15]), int(fields[16])
+        # 3proxy-setup monitor_v1: %O (client -> upstream), then %I (upstream -> client).
+        up, down = int(fields[15]), int(fields[16])
         operation = fields[18].split(' ', 1)[0]
     else:
         fields = line.strip().split(maxsplit=10)
@@ -31,10 +32,11 @@ def parse_line(line: str) -> dict:
         raise ValueError('invalid numeric value')
     if operation not in {'CONNECT', 'GET', 'POST', 'HEAD', 'PUT', 'DELETE', 'UDPASSOC', 'UDPMAP', 'BIND'}:
         operation = 'other'
-    return dict(event_at=timestamp, port=port, result_code=code, bytes_up=up, bytes_down=down, operation=operation)
+    return dict(event_at=timestamp, port=port, result_code=code, bytes_up=up, bytes_down=down, operation=operation,
+                format='monitor_v1' if line.startswith('v1|') else 'legacy')
 
 
-def tail(db, source: dict, started: int, now: int, max_lines: int = 2000):
+def tail(db, source: dict, started: int, now: int, max_lines: int = 2000, repair: bool = False):
     paths = sorted(Path(p) for p in glob.glob(source['log_glob']))
     if not paths:
         raise CollectionError('logs_missing')
@@ -90,10 +92,17 @@ def tail(db, source: dict, started: int, now: int, max_lines: int = 2000):
                         continue
                     if record['port'] not in source['ports']:
                         continue
-                    known = source.get('byte_semantics') == 'delta'
-                    db.conn.execute('''INSERT OR IGNORE INTO log_records
+                    profile = source.get('byte_semantics') == '3proxy_monitor_v1'
+                    if profile and record['format'] != 'monitor_v1':
+                        warnings.append('profile_format_mismatch')
+                        continue
+                    known = source.get('byte_semantics') == 'delta' or profile
+                    conflict = (''' ON CONFLICT(source_id,generation,offset) DO UPDATE SET
+                        bytes_up=excluded.bytes_up,bytes_down=excluded.bytes_down,quality=excluded.quality'''
+                        if repair and known else ' ON CONFLICT(source_id,generation,offset) DO NOTHING')
+                    db.conn.execute('''INSERT INTO log_records
                         (source_id,generation,offset,event_at,ingested_at,port,operation,result_code,bytes_up,bytes_down,quality)
-                        VALUES(?,?,?,?,?,?,?,?,?,?,?)''',
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?)''' + conflict,
                         (source['id'], generation, position, record['event_at'], now, record['port'], record['operation'],
                          record['result_code'], record['bytes_up'] if known else None, record['bytes_down'] if known else None,
                          'log_event_time' if known else 'unknown_byte_semantics'))
@@ -104,6 +113,6 @@ def tail(db, source: dict, started: int, now: int, max_lines: int = 2000):
                 files_read += 1
         if not files_read:
             raise CollectionError('no_readable_plain_logs')
-        if source.get('byte_semantics') != 'delta':
+        if source.get('byte_semantics') not in {'delta', '3proxy_monitor_v1'}:
             warnings.append('unknown_byte_semantics')
         db.run(source['id'], started, now, 'partial' if warnings else 'ok', warnings=warnings)

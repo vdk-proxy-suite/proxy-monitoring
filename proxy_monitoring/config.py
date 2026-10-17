@@ -42,7 +42,7 @@ def load(path: Path) -> dict:
             log_glob = source.get("log_glob", "")
             if not (Path(log_glob).is_absolute() or PurePosixPath(log_glob).is_absolute()):
                 raise ValueError("log_glob must be absolute")
-            if source.get("byte_semantics", "unknown") not in {"unknown", "delta"}:
+            if source.get("byte_semantics", "unknown") not in {"unknown", "delta", "3proxy_monitor_v1"}:
                 raise ValueError("unsupported byte semantics")
             if source.get("log_timezone", "UTC") != "UTC":
                 raise ValueError("only UTC legacy logs are supported")

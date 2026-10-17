@@ -13,6 +13,7 @@ def main():
     parser.add_argument('archive', type=Path)
     parser.add_argument('--scan', action='store_true')
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--threeproxy-binary', type=Path)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     expected = set(filter(None, subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0')))
@@ -38,6 +39,9 @@ def main():
             subprocess.run([sys.executable, 'tools/smoke_linux.py'], cwd=extracted, check=True)
             subprocess.run(['systemd-analyze', 'verify', 'systemd/proxy-monitoring.service',
                             'systemd/proxy-monitoring-mcp.service'], cwd=extracted, check=True)
+            if args.threeproxy_binary:
+                subprocess.run([sys.executable, 'tools/probe_3proxy_accounting.py',
+                                '--binary', str(args.threeproxy_binary.resolve())], cwd=extracted, check=True)
     print('Archive manifest, source bytes, 0644 modes and SHA256 verified; extracted temporary directory removed')
 
 

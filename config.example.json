@@ -21,7 +21,7 @@
       "log_glob": "/var/log/3proxy-setup/instances/main/*.log*",
       "ports": [1080, 1081, 1082, 1083, 8080, 8081, 8082, 8083, 8443, 8444, 8445, 8446],
       "log_timezone": "UTC",
-      "byte_semantics": "unknown"
+      "byte_semantics": "3proxy_monitor_v1"
     }
   ]
 }

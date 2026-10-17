@@ -23,3 +23,12 @@ jobs:
       - run: python -m proxy_monitoring --config config.example.json validate
       - if: runner.os == 'Linux'
         run: python tools/smoke_linux.py
+      - if: runner.os == 'Linux'
+        name: Verify real 3proxy accounting and logdump
+        shell: bash
+        run: |
+          curl -fL --retry 3 https://codeload.github.com/3proxy/3proxy/zip/refs/tags/0.9.5 -o "$RUNNER_TEMP/3proxy-0.9.5.zip"
+          printf '%s  %s\n' bd575745f8eab180aab3277f1f44347ae121519d746bf3c81b8a2b9e2665d0af "$RUNNER_TEMP/3proxy-0.9.5.zip" | sha256sum --check -
+          unzip -q "$RUNNER_TEMP/3proxy-0.9.5.zip" -d "$RUNNER_TEMP"
+          make -C "$RUNNER_TEMP/3proxy-0.9.5" -f Makefile.Linux -j2
+          python tools/probe_3proxy_accounting.py --binary "$RUNNER_TEMP/3proxy-0.9.5/bin/3proxy"

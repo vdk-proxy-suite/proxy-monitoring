@@ -98,9 +98,21 @@ class Database:
                 if row and tuple(row[k] for k in ("host_id", "kind", "instance", "unit")) != identity:
                     raise ValueError("source identity changed; use a new source id")
                 if row and row['config_signature'] != signature:
-                    raise ValueError('source configuration changed; use a new source id')
+                    # Only a byte-profile upgrade may retain the identity. Every
+                    # other field must match the previous configuration hash.
+                    allowed = set()
+                    if src['kind'] == '3proxy' and src.get('byte_semantics') == '3proxy_monitor_v1':
+                        for previous in ('unknown', 'delta', None):
+                            candidate = dict(src)
+                            if previous is None:
+                                candidate.pop('byte_semantics', None)
+                            else:
+                                candidate['byte_semantics'] = previous
+                            allowed.add(hashlib.sha256(json.dumps(candidate, sort_keys=True).encode()).hexdigest())
+                    if row['config_signature'] not in allowed:
+                        raise ValueError('source configuration changed; use a new source id')
                 self.conn.execute(
-                    "INSERT INTO sources VALUES(?,?,?,?,?,?,?,1) ON CONFLICT(id) DO UPDATE SET poll_ms=excluded.poll_ms,enabled=1",
+                    "INSERT INTO sources VALUES(?,?,?,?,?,?,?,1) ON CONFLICT(id) DO UPDATE SET poll_ms=excluded.poll_ms,config_signature=excluded.config_signature,enabled=1",
                     (src["id"], *identity, int(cfg["poll_seconds"] * 1000), signature),
                 )
 
