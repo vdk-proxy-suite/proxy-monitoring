@@ -36,7 +36,8 @@ def main():
         if args.test:
             subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], cwd=extracted, check=True)
             subprocess.run([sys.executable, 'tools/smoke_linux.py'], cwd=extracted, check=True)
-            subprocess.run(['systemd-analyze', 'verify', 'systemd/proxy-monitoring.service'], cwd=extracted, check=True)
+            subprocess.run(['systemd-analyze', 'verify', 'systemd/proxy-monitoring.service',
+                            'systemd/proxy-monitoring-mcp.service'], cwd=extracted, check=True)
     print('Archive manifest, source bytes, 0644 modes and SHA256 verified; extracted temporary directory removed')
 
 

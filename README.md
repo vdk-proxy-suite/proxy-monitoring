@@ -1,16 +1,60 @@
-# Proxy Monitoring 0.1.0
+# Proxy Monitoring 0.2.0
 
 Локальный Linux-сборщик телеметрии нескольких инстансов Telemt и 3proxy в SQLite.
 Коллектор не зависит от Telegram и работает без MCP-клиента. Python 3.11+,
-обязательных внешних runtime-зависимостей нет.
+обязательных внешних runtime-зависимостей у коллектора нет. Для MCP используется
+официальный SDK `mcp==2.3.0`; проверенные зависимости закреплены в `requirements-mcp.lock`.
 
-## Границы первого релиза
+## Возможности релиза
 
-Реализованы сбор, постоянное хранилище, read-only CLI, retention и systemd-шаблон.
-MCP-сервер, Telegram-адаптер, аномалии, исторические сводки и rollups пока не
-реализованы. Это основа мониторинга, а не готовый удалённый MCP endpoint.
+Реализованы сбор, постоянное хранилище, read-only CLI, retention и systemd-шаблоны.
+В 0.2.0 добавлены read-only MCP (stdio и Streamable HTTP), историческая аналитика,
+10 инструментов с JSON Schema/structured output и диагностические правила.
+Telegram-адаптер, OAuth, сезонные аномалии, lifecycle incidents и rollups пока не реализованы.
 Существующий `proxy-monitor-bot` остаётся самостоятельным проектом; его БД не
 импортируется и не изменяется.
+
+## MCP
+
+После настройки и запуска коллектора:
+
+```bash
+python3 -m venv venv
+venv/bin/python -m pip install -r requirements-mcp.lock
+venv/bin/python -m proxy_monitoring --config config.json mcp
+```
+
+Это stdio-сервер: stdout занят MCP-протоколом, команды shell туда не вводятся.
+Настройте MCP-клиент на запуск этой команды с абсолютными путями и рабочим
+каталогом проекта. В Windows используется `venv\Scripts\python.exe`.
+Для удалённой VM можно запускать stdio-команду через SSH с отключённым TTY.
+
+HTTP-режим требует приватный файл с криптографически случайным bearer token
+длиной 32–512 ASCII-символов без пробелов (например `secrets.token_urlsafe(32)`).
+Не передавайте токен в CLI arguments или Git. На Linux файл должен иметь mode 0600.
+
+```bash
+venv/bin/python -m proxy_monitoring --config config.json mcp \
+  --transport streamable-http --host 127.0.0.1 --port 9000 \
+  --token-file /etc/proxy-monitoring/mcp.token
+```
+
+Endpoint: `http://127.0.0.1:9000/mcp`, заголовок `Authorization: Bearer <token>`.
+Публичный bind запрещён. Для внешнего доступа нужны HTTPS reverse proxy и клиент,
+умеющий передавать bearer header. Reverse proxy должен сохранять Authorization,
+переписывать Host на `127.0.0.1:9000` и не записывать Authorization в access logs.
+Если клиент посылает Origin, задайте разрешённый origin:
+`--public-origin https://monitor.example.com`. Иначе любой Origin отклоняется.
+Это static bearer authentication, **не OAuth-сервер**; клиенты, требующие OAuth
+discovery, пока не поддерживаются. TLS, DNS и ingress автоматически не настраиваются.
+
+Шаблон отдельной службы: `systemd/proxy-monitoring-mcp.service`. Он использует
+venv, запускается после коллектора и ограничивает каталог БД чтением.
+Сначала установите зависимости в root-owned venv и создайте token-файл с доступом
+на чтение только runtime-пользователю. Шаблон не устанавливается автоматически.
+БД v0.1.0 читается напрямую без миграции; MCP не записывает её и не запускает сбор.
+
+Инструменты, параметры, семантика и ограничения: [docs/mcp.md](docs/mcp.md).
 
 ## Источники
 
@@ -112,7 +156,7 @@ sudo -u proxy-monitor python3 -m proxy_monitoring --config /etc/proxy-monitoring
 файл на диске автоматически. Размер БД зависит от числа рядов и объёма логов;
 перед production оцените рост. История старше retention удаляется без rollup.
 
-## Ограничения 0.1.0
+## Ограничения сбора
 
 - Нет gzip-backfill: `.gz` пропускаются с warning; используйте plain rename-ротацию
   и достаточную задержку сжатия. После долгого простоя возможно неполное покрытие
@@ -142,11 +186,15 @@ python3 tools/smoke_linux.py
 python3 tools/build_archive.py --output dist
 ```
 
+Для полного набора тестов используйте Python из venv с `requirements-mcp.lock`.
+Тесты MCP запускают реальный stdio-процесс, локальный HTTP endpoint и официальный
+SDK-клиент; после выполнения все созданные процессы завершаются.
+
 Unit/integration tests используют временные БД, синтетические логи и loopback HTTP.
 `smoke_linux.py` дополнительно проверяет реальный `/proc` и CLI на Linux, не
 останавливает службы и не обращается к production-прокси. CI запускает тесты на
 Linux и Windows. Спецификация реализованной БД: [docs/storage.md](docs/storage.md).
 
-Следующий этап: исторический query layer и MCP read-only transport; затем
-Telegram-адаптер того же query layer. Все интерфейсы должны сохранять различия
+Следующий этап: Telegram-адаптер, rollups и OAuth для клиентов, требующих discovery.
+Все интерфейсы сохраняют различия
 между application/network traffic, log events/sessions/TCP sockets и gaps/zeros.

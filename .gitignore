@@ -14,4 +14,8 @@ tmp/
 *.db-*
 *.sqlite*
 *.lock
+!requirements-mcp.lock
 *.log
+*.token
+token
+secrets/

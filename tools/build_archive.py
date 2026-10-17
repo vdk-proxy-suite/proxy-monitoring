@@ -14,7 +14,7 @@ def main():
     version = (root / 'VERSION').read_text().strip()
     paths = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0')
     allowed_roots = {'proxy_monitoring', 'tests', 'tools', 'docs', 'systemd', '.github'}
-    allowed_files = {'.gitignore', '.gitattributes', 'README.md', 'VERSION', 'pyproject.toml', 'config.example.json'}
+    allowed_files = {'.gitignore', '.gitattributes', '.gitleaks.toml', 'README.md', 'VERSION', 'pyproject.toml', 'config.example.json', 'requirements-mcp.lock'}
     selected = []
     for name in filter(None, paths):
         p = Path(name)

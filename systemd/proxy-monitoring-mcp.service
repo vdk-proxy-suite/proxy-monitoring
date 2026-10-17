@@ -1,0 +1,23 @@
+[Unit]
+Description=Proxy monitoring read-only MCP
+After=proxy-monitoring.service
+Requires=proxy-monitoring.service
+
+[Service]
+Type=simple
+User=proxy-monitor
+Group=proxy-monitor
+WorkingDirectory=/opt/proxy-monitoring
+ExecStart=/usr/bin/env /opt/proxy-monitoring/venv/bin/python -m proxy_monitoring --config /etc/proxy-monitoring/config.json mcp --transport streamable-http --token-file /etc/proxy-monitoring/mcp.token
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/var/lib/proxy-monitoring
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

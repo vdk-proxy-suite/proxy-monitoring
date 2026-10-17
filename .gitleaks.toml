@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated third-party virtual environment, never part of source or release"
+paths = ['''(^|[/\\])\.venv([/\\]|$)''']

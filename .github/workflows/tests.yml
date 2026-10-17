@@ -5,6 +5,7 @@ permissions:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         python: ['3.11', '3.12']
@@ -14,6 +15,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - run: python -m pip install -r requirements-mcp.lock
+      - run: python -m pip install -e .
+      - run: python -m pip check
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q proxy_monitoring tests tools
       - run: python -m proxy_monitoring --config config.example.json validate
